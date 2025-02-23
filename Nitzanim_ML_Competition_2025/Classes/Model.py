@@ -13,7 +13,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-from sklearn.metrics import accuracy_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, roc_auc_score
 
 
 class Model:
@@ -121,20 +121,20 @@ class Model:
         train_data_x, value_x, train_data_y, _ = self.Spliting_Train_Data()
 
         models = [
-            ('dt', DecisionTreeClassifier()),
-            ('rf', RandomForestClassifier(n_estimators=100, random_state=42)),
-            ('nb', GaussianNB()),
+            ('dt', DecisionTreeClassifier(max_depth=12, min_samples_split=30, min_samples_leaf=5, criterion='entropy', random_state=42)),
+            ('rf', RandomForestClassifier(n_estimators=200, max_depth=12, min_samples_split=30, max_features='sqrt', random_state=42)),
+            ('nb', GaussianNB(var_smoothing=1e-9)),
             ('knn', Pipeline([
-                ('scaler', StandardScaler()), 
-                ('knn', KNeighborsClassifier(n_neighbors=5))
+                ('scaler', StandardScaler()),
+                ('knn', KNeighborsClassifier(n_neighbors=10, algorithm='ball_tree', weights='distance', p=2))
             ])),
             ('svm', Pipeline([
-                ('scaler', StandardScaler()), 
-                ('svm', SVC(probability=True))
+                ('scaler', StandardScaler()),
+                ('svm', SVC(probability=True, C=1.0, kernel='rbf'))
             ])),
             ('lr', Pipeline([
-                ('scaler', StandardScaler()), 
-                ('lr', LogisticRegression())
+                ('scaler', StandardScaler()),
+                ('lr', LogisticRegression(C=1.0, solver='liblinear'))
             ]))
         ]
 
@@ -149,7 +149,7 @@ class Model:
         # Input: Nothing.
         # Output: A string which contains the evaluation scores of the model.
         _, _, _, value_y = self.Spliting_Train_Data()
-        return f"Accuracy: {accuracy_score(value_y, self.pred_y)}\nPrecision: {precision_score(value_y, self.pred_y)}\nRecall: {recall_score(value_y, self.pred_y)}"
+        return f"AUC: {roc_auc_score(value_y, self.pred_y)}"
     
 
     # Testing function:
