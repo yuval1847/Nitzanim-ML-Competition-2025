@@ -50,15 +50,13 @@ class Model:
     # Preprocess functions:
     def Remove_Null_Values(self):
         # Input: Nothing.
-        # Output: The function remove all the instances from the data which contains null values.
+        # Output: The function handle with all the null values from the train and test data.
         X_train = self.train_data.drop(['MonthlyIncome'], axis=1)
         y_train = self.train_data['MonthlyIncome']
-
         imputer = SimpleImputer(strategy='most_frequent')
         X_train = pd.DataFrame(imputer.fit_transform(X_train), columns=X_train.columns)
         self.train_data = pd.concat([X_train, y_train], axis=1)
         self.test_data = pd.DataFrame(imputer.transform(self.test_data), columns=self.test_data.columns)
-
 
 
     # Visualization functions:
@@ -124,7 +122,7 @@ class Model:
 
         models = [
             ('dt', DecisionTreeClassifier()),
-            ('rf', RandomForestClassifier(n_estimators=50, random_state=42)),
+            ('rf', RandomForestClassifier(n_estimators=100, random_state=42)),
             ('nb', GaussianNB()),
             ('knn', Pipeline([
                 ('scaler', StandardScaler()), 
