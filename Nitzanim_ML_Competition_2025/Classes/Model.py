@@ -9,6 +9,9 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 
+from Classes.EModels import EModels
+from Classes.ETypeOfScaling import ETypeOfScaling
+
 
 class Model:
     """
@@ -38,6 +41,15 @@ class Model:
         # Standardized data
         self.standardized_train_data = self.Standardization(self.standardized_train_data)
         self.standardized_test_data =self.Standardization(self.standardized_test_data)
+
+        # A dictionary of scaling types per model
+        self.models_type_of_scaling = {
+            EModels.LOGISTIC_REGRESSION:ETypeOfScaling.NO_SCALING,
+            EModels.RANDOM_FOREST:ETypeOfScaling.NO_SCALING,
+            EModels.KNN:ETypeOfScaling.STANDARDIZATION,
+            EModels.GAUSSIAN_NAIVE_BAYES:ETypeOfScaling.NO_SCALING,
+            EModels.SVM:ETypeOfScaling.STANDARDIZATION
+        }
 
     
     # Preprocess functions:
@@ -160,23 +172,47 @@ class Model:
     # Training function:
     def Training(self):
         # Input: Nothing.
-        # Output: A list of the the models after inserting them the training data.
+        # Output: A dictionary of the the models after inserting them the training data.
         train_data_x, train_data_y = self.Spliting_Data(self.train_data)
         normalized_train_data_x, normalized_train_data_y = self.Spliting_Data(self.normalized_train_data)
         standardized_train_data_x, standardized_train_data_y = self.Spliting_Data(self.standardized_train_data)
 
-        models = [
-            self.Logistic_Regression_Model(train_data_x, train_data_y),
-            self.Random_Forest_Model(train_data_x, train_data_y),
-            self.KNN_Model(standardized_train_data_x, standardized_train_data_y),
-            self.Gaussian_Naive_Bayes(train_data_x, train_data_y),
-            self.SVM_Model(standardized_train_data_x, standardized_train_data_y)
-        ]
+        models = {
+            EModels.LOGISTIC_REGRESSION:self.Logistic_Regression_Model(train_data_x, train_data_y),
+            EModels.RANDOM_FOREST:self.Random_Forest_Model(train_data_x, train_data_y),
+            EModels.KNN:self.KNN_Model(standardized_train_data_x, standardized_train_data_y),
+            EModels.GAUSSIAN_NAIVE_BAYES:self.Gaussian_Naive_Bayes(train_data_x, train_data_y),
+            EModels.SVM:self.SVM_Model(standardized_train_data_x, standardized_train_data_y)
+        }
 
         return models
 
 
     # Testing function:
-    def Testing(self, models:list):
-        # Input: A list of the trained models.
-        # Output: 
+    def Testing(self, models:dict[EModels:pd.core.frame.DataFrame]):
+        # Input: A dictionary of enums and the trained models.
+        # Output: A dictionary of DataFrame objects which represent the predictions.
+        test_data_x, test_data_y = self.Spliting_Data(self.test_data)
+        normalized_test_data_x, normalized_test_data_y = self.Spliting_Data(self.normalized_test_data)
+        standardized_test_data_x, standardized_test_data_y = self.Spliting_Data(self.standardized_test_data)
+        
+        predictions = {}
+
+        for key, value in models:
+            if self.models_type_of_scaling[key] == ETypeOfScaling.NO_SCALING:
+                predictions[key] = value.predict(test_data_x)
+            elif self.models_type_of_scaling[key] == ETypeOfScaling.NORMALIZATION:
+                predictions[key] = value.predict(normalized_test_data_x)
+            elif self.models_type_of_scaling[key] == ETypeOfScaling.STANDARDIZATION:
+                predictions[key] = value.predict(standardized_test_data_x)
+            else:
+                raise Exception(f"No type of scaling was set to {key.name} model")
+        
+        return predictions
+    
+
+    # Evaluation functions:
+    def Evaluation(self):
+        # Input: A dictionary of enums and DataFrame objects which represent the predictions.
+        # Output: A string which contains the models evaluations according to several evaluation methods.
+        
