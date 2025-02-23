@@ -2,25 +2,28 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import StackingClassifier
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
-
-from Classes.EModels import EModels
-from Classes.ETypeOfScaling import ETypeOfScaling
+from sklearn.metrics import accuracy_score, precision_score, recall_score
 
 
 class Model:
     """
     A class which represent a ML model algorithem for the Nitzanim ML Competition 2025.
-    This model contains some Supervised Learning models which together creates Ensemble Learning Model.
+    This model contains some Supervised Learning models which together creates a Stacking Ensemble Learning Model.
     """
 
     # Constractor:
-    def __init__(self, train_data:pd.core.frame.DataFrame, test_data:pd.core.frame.DataFrame):
+    def __init__(self, train_data:pd.DataFrame, test_data:pd.DataFrame):
         # The constractor of the Model
 
         # Variables which stores the data of the model (the train and test data) as DataFrame objects.
@@ -28,36 +31,34 @@ class Model:
         self.test_data = test_data
         
         # 2 lists of the features' names divided by representing qualitative or quantitative data types.
-        self.qualitative_features = ["WorkingCondition", "Education", "MaritalStatus", "Occupation", "Relationship", "Ethnicity", "Gender", "CountryOfOrigin", "MonthlyIncome"]
+        self.qualitative_features = ["WorkingCondition", "Education", "MaritalStatus", "Occupation", "Relationship", "Ethnicity", "Gender", "CountryOfOrigin"]
         self.quantitative_features = ["Age", "FinalWeight", "YearsOfEducation", "InvestmentGains", "InvestmentLosses", "WeeklyWorkHours"]
         
+        # A variable which stores the StackingClassifier object of the model itself.
+        self.stacking_model = None
+
+        # A variable which stores the y prediction of the train data.
+        self.pred_y = pd.DataFrame()
+
+        # A variable which stores the y prediction the test data.
+        self.test_pred_y = pd.DataFrame()
+
         # Removing the null values from the data
         self.Remove_Null_Values()
-
-        # Normalized data
-        self.normalized_train_data = self.Normalization(self.normalized_train_data)
-        self.normalized_test_data = self.Normalization(self.normalized_test_data)
-
-        # Standardized data
-        self.standardized_train_data = self.Standardization(self.standardized_train_data)
-        self.standardized_test_data =self.Standardization(self.standardized_test_data)
-
-        # A dictionary of scaling types per model
-        self.models_type_of_scaling = {
-            EModels.LOGISTIC_REGRESSION:ETypeOfScaling.NO_SCALING,
-            EModels.RANDOM_FOREST:ETypeOfScaling.NO_SCALING,
-            EModels.KNN:ETypeOfScaling.STANDARDIZATION,
-            EModels.GAUSSIAN_NAIVE_BAYES:ETypeOfScaling.NO_SCALING,
-            EModels.SVM:ETypeOfScaling.STANDARDIZATION
-        }
 
     
     # Preprocess functions:
     def Remove_Null_Values(self):
         # Input: Nothing.
         # Output: The function remove all the instances from the data which contains null values.
-        self.train_data = self.train_data.dropna()
-        self.test_data = self.test_data.dropna()
+        X_train = self.train_data.drop(['MonthlyIncome'], axis=1)
+        y_train = self.train_data['MonthlyIncome']
+
+        imputer = SimpleImputer(strategy='most_frequent')
+        X_train = pd.DataFrame(imputer.fit_transform(X_train), columns=X_train.columns)
+        self.train_data = pd.concat([X_train, y_train], axis=1)
+        self.test_data = pd.DataFrame(imputer.transform(self.test_data), columns=self.test_data.columns)
+
 
 
     # Visualization functions:
@@ -97,122 +98,77 @@ class Model:
         self.Generate_Box_Plots(quantitative_features=self.quantitative_features) 
     
 
-    # Label Encoding functions:
-    def Label_Encoding_Specific_Data(self, data:pd.core.frame.DataFrame):
-        # Input: DataFrame object which contains data.
-        # Output: The given DataFrame object after performing label encoding over it.
-        for i in self.qualitative_features:
-            data = LabelEncoder.fit_transform(data[i])
-        return data
+    # Label Encoding function:
     def Label_Encoding(self):
         # Input: Nothing.
         # Output: The function performs label encoding over the train and test data.
-        self.train_data = self.Label_Encoding_Specific_Data(self.train_data)
-        self.test_data = self.Label_Encoding_Specific_Data(self.test_data)
+        for i in self.qualitative_features:
+            le = LabelEncoder()
+            self.train_data.loc[:, i] = le.fit_transform(self.train_data[i].astype(str))
+            self.test_data.loc[:, i] = le.transform(self.test_data[i].astype(str))
 
-
-    # Normalization and Standardization functions:
-    def Normalization(self, data:pd.core.frame.DataFrame):
-        # Input: DataFrame object which contains data.
-        # Output: The given DataFrame object after performing normalization over it.
-        for i in self.quantitative_features:
-            if i != "MonthlyIncome":
-                data[i] = MinMaxScaler(feature_range=(0, 1)).fit_transform(data[[i]])
-        return data
-    def Standardization(self, data: pd.core.frame.DataFrame):
-        # Input: DataFrame object which contains data.
-        # Output: The given DataFrame object after performing standardization over it.
-        for i in self.quantitative_features:
-            if i != "MonthlyIncome":
-                data[i] = StandardScaler().fit_transform(data[[i]])
-        return data
-    
 
     # Spliting data function:
-    def Spliting_Data(self, data:pd.core.frame.DataFrame):
+    def Spliting_Train_Data(self):
         # Input: DataFrame object which contains data.
         # Output: The splited parts of the given data (the data without the MonthlyIncome column
         # and the data with only the MonthlyIncome column).
-        return data.drop('MonthlyIncome', axis=1), data['MonthlyIncome']
-
-
-    # Supervised Models functions:
-    def Logistic_Regression_Model(self, train_data_x:pd.core.frame.DataFrame, train_data_y:pd.core.frame.DataFrame):
-        # Input: DataFrame objects which represent the 2 splited parts of the train data.
-        # Output: The function returns a Logistic Regression model after training it.
-        logistic_regression_model = LogisticRegression(max_iter=1000)
-        logistic_regression_model.fit(train_data_x, train_data_y)
-        return logistic_regression_model
-    def Random_Forest_Model(self, train_data_x:pd.core.frame.DataFrame, train_data_y:pd.core.frame.DataFrame):
-        # Input: DataFrame objects which represent the 2 splited parts of the train data.
-        # Output: The function returns a Random Forest model after training it.
-        random_forest_model = RandomForestClassifier(n_estimators=100, random_state=42)
-        random_forest_model.fit(train_data_x, train_data_y)
-        return random_forest_model
-    def KNN_Model(self, standardized_train_data_x:pd.core.frame.DataFrame, standardized_train_data_y:pd.core.frame.DataFrame):
-        # Input: DataFrame objects which represent the 2 splited parts of the standardized train data.
-        # Output: The function returns a KNN model after training it.
-        knn_model = KNeighborsClassifier(n_neighbors=5)
-        knn_model.fit(standardized_train_data_x, standardized_train_data_y)
-        return knn_model
-    def Gaussian_Naive_Bayes(self, train_data_x:pd.core.frame.DataFrame, train_data_y:pd.core.frame.DataFrame):
-        # Input: DataFrame objects which represent the 2 splited parts of the train data.
-        # Output: The function returns a Gaussian Naive Bayes model after training it.
-        gaussian_naive_bayes = GaussianNB()
-        gaussian_naive_bayes.fit(train_data_x, train_data_y)
-        return gaussian_naive_bayes
-    def SVM_Model(self, standardized_train_data_x:pd.core.frame.DataFrame, standardized_train_data_y:pd.core.frame.DataFrame):
-        # Input: DataFrame objects which represent the 2 splited parts of the train data.
-        # Output: The function returns a Support Vector Machine model after training it.
-        svm_model = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)
-        svm_model.fit(standardized_train_data_x, standardized_train_data_y)
-        return svm_model
-
+        return train_test_split(self.train_data.drop(['Id', 'MonthlyIncome'], axis=1), self.train_data['MonthlyIncome'], test_size=0.2, random_state=42)
+            
 
     # Training function:
     def Training(self):
         # Input: Nothing.
-        # Output: A dictionary of the the models after inserting them the training data.
-        train_data_x, train_data_y = self.Spliting_Data(self.train_data)
-        normalized_train_data_x, normalized_train_data_y = self.Spliting_Data(self.normalized_train_data)
-        standardized_train_data_x, standardized_train_data_y = self.Spliting_Data(self.standardized_train_data)
+        # Output: The function trains the models and store it's y prediction.
+        train_data_x, value_x, train_data_y, _ = self.Spliting_Train_Data()
 
-        models = {
-            EModels.LOGISTIC_REGRESSION:self.Logistic_Regression_Model(train_data_x, train_data_y),
-            EModels.RANDOM_FOREST:self.Random_Forest_Model(train_data_x, train_data_y),
-            EModels.KNN:self.KNN_Model(standardized_train_data_x, standardized_train_data_y),
-            EModels.GAUSSIAN_NAIVE_BAYES:self.Gaussian_Naive_Bayes(train_data_x, train_data_y),
-            EModels.SVM:self.SVM_Model(standardized_train_data_x, standardized_train_data_y)
-        }
+        models = [
+            ('dt', DecisionTreeClassifier()),
+            ('rf', RandomForestClassifier(n_estimators=50, random_state=42)),
+            ('nb', GaussianNB()),
+            ('knn', Pipeline([
+                ('scaler', StandardScaler()), 
+                ('knn', KNeighborsClassifier(n_neighbors=5))
+            ])),
+            ('svm', Pipeline([
+                ('scaler', StandardScaler()), 
+                ('svm', SVC(probability=True))
+            ])),
+            ('lr', Pipeline([
+                ('scaler', StandardScaler()), 
+                ('lr', LogisticRegression())
+            ]))
+        ]
 
-        return models
-
-
-    # Testing function:
-    def Testing(self, models:dict[EModels:pd.core.frame.DataFrame]):
-        # Input: A dictionary of enums and the trained models.
-        # Output: A dictionary of DataFrame objects which represent the predictions.
-        test_data_x, test_data_y = self.Spliting_Data(self.test_data)
-        normalized_test_data_x, normalized_test_data_y = self.Spliting_Data(self.normalized_test_data)
-        standardized_test_data_x, standardized_test_data_y = self.Spliting_Data(self.standardized_test_data)
+        self.stacking_model = StackingClassifier(estimators=models, final_estimator=LogisticRegression())
+        self.stacking_model.fit(train_data_x, train_data_y)
+        self.pred_y = self.stacking_model.predict(value_x)
+        print("Finished Training!")
         
-        predictions = {}
 
-        for key, value in models:
-            if self.models_type_of_scaling[key] == ETypeOfScaling.NO_SCALING:
-                predictions[key] = value.predict(test_data_x)
-            elif self.models_type_of_scaling[key] == ETypeOfScaling.NORMALIZATION:
-                predictions[key] = value.predict(normalized_test_data_x)
-            elif self.models_type_of_scaling[key] == ETypeOfScaling.STANDARDIZATION:
-                predictions[key] = value.predict(standardized_test_data_x)
-            else:
-                raise Exception(f"No type of scaling was set to {key.name} model")
-        
-        return predictions
+    # Evaluation function:
+    def Evaluation(self):
+        # Input: Nothing.
+        # Output: A string which contains the evaluation scores of the model.
+        _, _, _, value_y = self.Spliting_Train_Data()
+        return f"Accuracy: {accuracy_score(value_y, self.pred_y)}\nPrecision: {precision_score(value_y, self.pred_y)}\nRecall: {recall_score(value_y, self.pred_y)}"
     
 
-    # Evaluation functions:
-    def Evaluation(self):
-        # Input: A dictionary of enums and DataFrame objects which represent the predictions.
-        # Output: A string which contains the models evaluations according to several evaluation methods.
-        
+    # Testing function:
+    def Testing(self):
+        # Input: Nothing.
+        # Output: The function test the model.
+        test_x = self.test_data.drop('Id', axis=1)
+        self.test_pred_y = self.stacking_model.predict(test_x)
+        print("Finished Testing!")
+    
+
+    # Saving results function:
+    def Saving_Results(self):
+        # Input: Nothing.
+        # Output: The function creates a csv file named "results.csv" which stores the results of the model.
+        pd.DataFrame({
+            'Id': self.test_data['Id'],
+            'MonthlyIncome': self.test_pred_y
+        }).to_csv('Data\\results.csv', index=False)
+        print("The results were saved successfully!")
