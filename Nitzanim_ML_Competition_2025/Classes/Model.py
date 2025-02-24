@@ -5,11 +5,10 @@ import matplotlib.pyplot as plt
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import StackingClassifier
+from sklearn.ensemble import StackingClassifier, RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
@@ -121,21 +120,23 @@ class Model:
         train_data_x, value_x, train_data_y, _ = self.Spliting_Train_Data()
 
         models = [
-            ('dt', DecisionTreeClassifier(max_depth=12, min_samples_split=30, min_samples_leaf=5, criterion='entropy', random_state=42)),
-            ('rf', RandomForestClassifier(n_estimators=200, max_depth=12, min_samples_split=30, max_features='sqrt', random_state=42)),
+            ('dt', DecisionTreeClassifier(max_depth=15, min_samples_split=20, min_samples_leaf=5, criterion='entropy', random_state=42)),
+            ('rf', RandomForestClassifier(n_estimators=300, max_depth=15, min_samples_split=20, max_features='sqrt', random_state=42)),
             ('nb', GaussianNB(var_smoothing=1e-9)),
             ('knn', Pipeline([
                 ('scaler', StandardScaler()),
-                ('knn', KNeighborsClassifier(n_neighbors=10, algorithm='ball_tree', weights='distance', p=2))
+                ('knn', KNeighborsClassifier(n_neighbors=7, algorithm='ball_tree', weights='distance', p=2))
             ])),
             ('svm', Pipeline([
                 ('scaler', StandardScaler()),
-                ('svm', SVC(probability=True, C=1.0, kernel='rbf'))
+                ('svm', SVC(probability=True, C=1.5, kernel='rbf'))
             ])),
             ('lr', Pipeline([
                 ('scaler', StandardScaler()),
-                ('lr', LogisticRegression(C=1.0, solver='liblinear'))
-            ]))
+                ('lr', LogisticRegression(C=1.2, solver='liblinear'))
+            ])),
+            ('ada', AdaBoostClassifier(n_estimators=150, learning_rate=1.0, random_state=42)),
+            ('gb', GradientBoostingClassifier(n_estimators=200, learning_rate=0.1, max_depth=5, random_state=42))
         ]
 
         self.stacking_model = StackingClassifier(estimators=models, final_estimator=LogisticRegression())
